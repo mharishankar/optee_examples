@@ -5,6 +5,7 @@
 #include <ocall_ta.h>
 
 #include <pta_ocall.h>
+#include <util.h>
 
 TEE_Result TA_CreateEntryPoint(void)
 {
@@ -28,58 +29,71 @@ void TA_CloseSessionEntryPoint(void *sess_ctx)
 	(void)sess_ctx;
 }
 
-static TEE_Result go()
+TEE_TASessionHandle g_pta_ocall_session = NULL;
+
+TEE_Result TEE_InvokeHostCommand(uint32_t cancellationRequestTimeout,
+				uint32_t commandID, uint32_t paramTypes,
+				TEE_Param params[TEE_NUM_PARAMS],
+				uint32_t *returnOrigin)
 {
 	TEE_UUID uuid = PTA_UUID;
-	TEE_TASessionHandle s;
-	uint32_t eorig;
-	TEE_Result res;
 
 	const uint32_t pt = TEE_PARAM_TYPES(
 		TEE_PARAM_TYPE_VALUE_INOUT,
-		TEE_PARAM_TYPE_MEMREF_INOUT,
+		params ? TEE_PARAM_TYPE_MEMREF_INOUT : TEE_PARAM_TYPE_NONE,
 		TEE_PARAM_TYPE_NONE,
 		TEE_PARAM_TYPE_NONE);
 
-	uint32_t ca_cmd_id;
-	uint32_t ca_num_params;
-
-	TEE_Param ca_params[4];
-	size_t ca_params_size;
-
-	uint32_t ca_cmd_ret;
-	uint32_t ca_cmd_ret_origin;
-
 	TEE_Param rpc_params[4] = { 0 };
 
-	/* Open TA2TA session with the OCALL PTA */
-	res = TEE_OpenTASession(&uuid, TEE_TIMEOUT_INFINITE, 0, NULL, &s, &eorig);
-	if (res != TEE_SUCCESS) {
-		EMSG("Failed to open session to OCALL PTA: 0x%x", res);
-		return res;
+	uint32_t eorig;
+	TEE_Result res;
+
+	/* Open TA2TA session with the OCALL PTA, if necessary */
+	if (!g_pta_ocall_session) {
+		res = TEE_OpenTASession(&uuid, TEE_TIMEOUT_INFINITE, 0, NULL,
+			&g_pta_ocall_session, &eorig);
+		if (res != TEE_SUCCESS) {
+			EMSG("Failed to open session to OCALL PTA: 0x%x", res);
+			eorig = TEE_ORIGIN_COMMS;
+			goto exit;
+		}
 	}
 
-	ca_cmd_id = 0;
-	ca_num_params = 4;
-	ca_params_size = sizeof(*ca_params) * ca_num_params;
-	memset(ca_params, 0, ca_params_size);
+	/* Set up the TA interface for the OCALL PTA */
+	rpc_params[0].value.a = commandID;
+	if (params) {
+		rpc_params[0].value.b = paramTypes;
+		rpc_params[1].memref.buffer = params;
+		rpc_params[1].memref.size = sizeof(params);
+	}
 
-	rpc_params[0].value.a = ca_cmd_id;
-	rpc_params[0].value.b = ca_num_params;
-	rpc_params[1].memref.buffer = ca_params;
-	rpc_params[1].memref.size = ca_params_size;
-
-	res = TEE_InvokeTACommand(s, TEE_TIMEOUT_INFINITE, PTA_OCALL_SEND, pt,
-		rpc_params, &eorig);
+	/* Send the OCALL request to the OCALL PTA */
+	res = TEE_InvokeTACommand(g_pta_ocall_session, cancellationRequestTimeout,
+		PTA_OCALL_SEND, pt, rpc_params, &eorig);
 	if (res != TEE_SUCCESS) {
 		EMSG("Failed to invoke SEND on OCALL PTA: 0x%x", res);
-		return res;
+		eorig = TEE_ORIGIN_TEE;
+		goto exit;
 	}
 
-	ca_cmd_ret = rpc_params[0].value.a;
-	ca_cmd_ret_origin = rpc_params[0].value.b;
+	/* Extract the OCALL return value and error origin */
+	res = rpc_params[0].value.a;
+	eorig = rpc_params[0].value.b;
 
-	printf("CA return value: 0x%x of %u\n", ca_cmd_ret, ca_cmd_ret_origin);
+exit:
+	if (returnOrigin)
+		*returnOrigin = eorig;
+	return res;
+}
+
+static TEE_Result go()
+{
+	uint32_t eorig;
+	TEE_Result res;
+
+	res = TEE_InvokeHostCommand(TEE_TIMEOUT_INFINITE, 0, 0, NULL, &eorig);
+	printf("CA return value: 0x%x of %u\n", res, eorig);
 
 	return res;
 }
