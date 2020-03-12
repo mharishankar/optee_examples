@@ -65,7 +65,7 @@ TEE_Result TEE_InvokeHostCommand(uint32_t cancellationRequestTimeout,
 	if (params) {
 		rpc_params[0].value.b = paramTypes;
 		rpc_params[1].memref.buffer = params;
-		rpc_params[1].memref.size = sizeof(params);
+		rpc_params[1].memref.size = sizeof(*params) * TEE_NUM_PARAMS;
 	}
 
 	/* Send the OCALL request to the OCALL PTA */
@@ -92,7 +92,19 @@ static TEE_Result go()
 	uint32_t eorig;
 	TEE_Result res;
 
-	res = TEE_InvokeHostCommand(TEE_TIMEOUT_INFINITE, 0, 0, NULL, &eorig);
+	char *str = "Hello, OCALLs!";
+
+	TEE_Param params[4];
+	uint32_t pt = TEE_PARAM_TYPES(
+		TEE_PARAM_TYPE_MEMREF_INPUT,
+		TEE_PARAM_TYPE_NONE,
+		TEE_PARAM_TYPE_NONE,
+		TEE_PARAM_TYPE_NONE);
+
+	params[0].memref.buffer = str;
+	params[0].memref.size = strlen(str) + 1;
+
+	res = TEE_InvokeHostCommand(TEE_TIMEOUT_INFINITE, 0, pt, params, &eorig);
 	printf("CA return value: 0x%x of %u\n", res, eorig);
 
 	return res;
