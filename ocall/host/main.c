@@ -7,6 +7,9 @@
 
 #include <ocall_ta.h>
 
+TEEC_Context ctx;
+TEEC_Session sess;
+
 TEEC_Result ocall_handler(void *context, TEEC_UUID *taUUID, uint32_t commandId,
 						  uint32_t paramTypes,
 						  TEEC_Parameter params[TEEC_CONFIG_PAYLOAD_REF_COUNT])
@@ -25,14 +28,18 @@ TEEC_Result ocall_handler(void *context, TEEC_UUID *taUUID, uint32_t commandId,
 		taUUID->clockSeqAndNode[6],
 		taUUID->clockSeqAndNode[7]);
 
+	printf("Param types are: 0x%x\n", paramTypes);
+	if (params[0].tmpref.buffer) {
+		printf("Param 0: Size: %zu\n", params[0].tmpref.size);
+		printf("Param 0: Value: %s\n", (char *)params[0].tmpref.buffer);
+	}
+
 	return TEEC_SUCCESS;
 }
 
 int main(void)
 {
 	TEEC_Result res;
-	TEEC_Context ctx;
-	TEEC_Session sess;
 	TEEC_Operation op;
 	TEEC_UUID uuid = TA_OCALL_UUID;
 	uint32_t err_origin;
