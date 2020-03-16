@@ -10,40 +10,108 @@
 TEEC_Context ctx;
 TEEC_Session sess;
 
+static void print_uuid(TEEC_UUID *uuid)
+{
+	printf("\tClient: %x-%x-%x-%x%x-%x%x%x%x%x%x\n",
+		uuid->timeLow,
+		uuid->timeMid,
+		uuid->timeHiAndVersion,
+		uuid->clockSeqAndNode[0],
+		uuid->clockSeqAndNode[1],
+		uuid->clockSeqAndNode[2],
+		uuid->clockSeqAndNode[3],
+		uuid->clockSeqAndNode[4],
+		uuid->clockSeqAndNode[5],
+		uuid->clockSeqAndNode[6],
+		uuid->clockSeqAndNode[7]);
+}
+
 TEEC_Result ocall_handler(void *context, TEEC_UUID *taUUID, uint32_t commandId,
 			  uint32_t paramTypes,
 			  TEEC_Parameter params[TEEC_CONFIG_PAYLOAD_REF_COUNT])
 {
-	printf("Have OCALL: %u\n", commandId);
-	printf("The caller is: %x-%x-%x-%x%x-%x%x%x%x%x%x\n",
-		taUUID->timeLow,
-		taUUID->timeMid,
-		taUUID->timeHiAndVersion,
-		taUUID->clockSeqAndNode[0],
-		taUUID->clockSeqAndNode[1],
-		taUUID->clockSeqAndNode[2],
-		taUUID->clockSeqAndNode[3],
-		taUUID->clockSeqAndNode[4],
-		taUUID->clockSeqAndNode[5],
-		taUUID->clockSeqAndNode[6],
-		taUUID->clockSeqAndNode[7]);
+	printf("OCALL: %u\n", commandId);
+	print_uuid(taUUID);
 
-	printf("Param types are: 0x%x\n", paramTypes);
-	if (params[0].tmpref.buffer) {
-		printf("Param 0: Size: %zu\n", params[0].tmpref.size);
-		printf("Param 0: Value: %s\n", (char *)params[0].tmpref.buffer);
-	}
+	char *msg = "This string was sent by the CA";
 
-	printf("Param 1: %u, %u\n", params[1].value.a, params[1].value.b);
+	switch (commandId)
+	{
+	case TA_OCALL_CA_CMD_TEST_1:
+		printf("\tOK\n");
+		break;
+	case TA_OCALL_CA_CMD_TEST_2:
+		printf("\tInput values: %u, %u\n", params[0].value.a,
+			params[0].value.b);
+		printf("\tOK\n");
+		break;
+	case TA_OCALL_CA_CMD_TEST_3:
+		printf("\tInput string: %s\n", (char *)params[0].tmpref.buffer);
+		printf("\tInput size: %zu\n", params[0].tmpref.size);
+		printf("\tOK\n");
+		break;
+	case TA_OCALL_CA_CMD_TEST_4:
+		params[0].value.a = 0x1;
+		params[0].value.b = 0x2;
+		printf("\tOK\n");
+		break;
+	case TA_OCALL_CA_CMD_TEST_5:
+		if (!params[0].tmpref.buffer) {
+			printf("\tNo buffer\n");
+			return TEEC_ERROR_BAD_PARAMETERS;
+		}
+		printf("\tBuffer size: %zu\n", params[0].tmpref.size);
+		params[0].tmpref.size = strlen(msg) + 1;
+		memcpy(params[0].tmpref.buffer, msg, params[0].tmpref.size);
+		printf("\tOK\n");
+		break;
+	case TA_OCALL_CA_CMD_TEST_6:
+		printf("\tInput values: %u, %u\n", params[0].value.a,
+			params[0].value.b);
+		params[0].value.a = 0x3;
+		params[0].value.b = 0x4;
+		printf("\tOK\n");
+		break;
+	case TA_OCALL_CA_CMD_TEST_7:
+		if (!params[0].tmpref.buffer) {
+			printf("\tNo buffer\n");
+			return TEEC_ERROR_BAD_PARAMETERS;
+		}
+		printf("\tInput string: %s\n", (char *)params[0].tmpref.buffer);
+		printf("\tInput size: %zu\n", params[0].tmpref.size);
+		params[0].tmpref.size = strlen(msg) + 1;
+		memcpy(params[0].tmpref.buffer, msg,
+			params[0].tmpref.size);
+		printf("\tOK\n");
+		break;
+	case TA_OCALL_CA_CMD_TEST_8:
+		if (!params[2].tmpref.buffer || !params[3].tmpref.buffer) {
+			printf("\tNo buffer(s)\n");
+			return TEEC_ERROR_BAD_PARAMETERS;
+		}
+		printf("\tInput values: %u, %u\n", params[0].value.a,
+			params[0].value.b);
 
-	params[1].value.a = 0xE;
-	params[1].value.b = 0xF;
+		printf("\tInout values: %u, %u\n", params[1].value.a,
+			params[1].value.b);
 
-	const char *mystring = "This string was sent by the CA.";
-	if (params[2].tmpref.buffer) {
-		printf("Have buffer in param 2: %zu\n", params[2].tmpref.size);
-		params[2].tmpref.size = strlen(mystring) + 1;
-		memcpy(params[2].tmpref.buffer, mystring, params[2].tmpref.size);
+		printf("\tInput string: %s\n", (char *)params[2].tmpref.buffer);
+		printf("\tInput size: %zu\n", params[2].tmpref.size);
+
+		printf("\tInout string: %s\n", (char *)params[3].tmpref.buffer);
+		printf("\tInout size: %zu\n", params[3].tmpref.size);
+
+		params[1].value.a = 0x3;
+		params[1].value.b = 0x4;
+
+		params[3].tmpref.size = strlen(msg) + 1;
+		memcpy(params[3].tmpref.buffer, msg,
+			params[3].tmpref.size);
+		printf("\tOK\n");
+		break;
+	default:
+		printf("\tBad function ID!\n");
+		return TEEC_ERROR_BAD_PARAMETERS;
 	}
 
 	return TEEC_SUCCESS;
@@ -78,14 +146,87 @@ int main(void)
 		TEEC_NONE,
 		TEEC_NONE,
 		TEEC_NONE);
-
-	printf("Invoking TA\n");
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST, &op, &err_origin);
+  
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_1, &op, &err_origin);
 	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x", res,
-			 err_origin);
-	printf("TA invoked\n");
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
 
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_2, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_3, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_4, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_5, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_6, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_7, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_8, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+ 
+	/* START: TA_OCALL_CMD_TEST_9 */
+
+ 	char buf[128];
+	char *msg1 = "This string was sent by the CA";
+	const char *msg2 = "The CA thinks this is a fun riddle";
+
+	memset(op.params, 0, sizeof(op.params));
+
+	op.paramTypes = TEEC_PARAM_TYPES(
+		TEEC_VALUE_INPUT,
+		TEEC_VALUE_INOUT,
+		TEEC_MEMREF_TEMP_INPUT,
+		TEEC_MEMREF_TEMP_INOUT);
+
+	op.params[0].value.a = 0x3;
+	op.params[0].value.b = 0x4;
+
+	op.params[1].value.a = 0x5;
+	op.params[1].value.b = 0x6;
+	
+	op.params[2].tmpref.buffer = msg1;
+	op.params[2].tmpref.size = strlen(msg1) + 1;
+
+	op.params[3].tmpref.buffer = buf;
+	op.params[3].tmpref.size = sizeof(buf);
+	memcpy(buf, msg2, strlen(msg2) + 1);
+
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_9, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+
+	printf("\tInout values: %u, %u\n", op.params[1].value.a,
+				op.params[1].value.b);
+
+	printf("\tInout string: %s\n", (char *)op.params[3].tmpref.buffer);
+	printf("\tInout size: %zu\n", op.params[3].tmpref.size);
+
+	/* END: TA_OCALL_CMD_TEST_9 */
+ 
 	TEEC_CloseSession(&sess);
 
 	TEEC_FinalizeContext(&ctx);
