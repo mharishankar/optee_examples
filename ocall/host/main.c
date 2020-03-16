@@ -11,8 +11,8 @@ TEEC_Context ctx;
 TEEC_Session sess;
 
 TEEC_Result ocall_handler(void *context, TEEC_UUID *taUUID, uint32_t commandId,
-						  uint32_t paramTypes,
-						  TEEC_Parameter params[TEEC_CONFIG_PAYLOAD_REF_COUNT])
+			  uint32_t paramTypes,
+			  TEEC_Parameter params[TEEC_CONFIG_PAYLOAD_REF_COUNT])
 {
 	printf("Have OCALL: %u\n", commandId);
 	printf("The caller is: %x-%x-%x-%x%x-%x%x%x%x%x%x\n",
@@ -34,6 +34,18 @@ TEEC_Result ocall_handler(void *context, TEEC_UUID *taUUID, uint32_t commandId,
 		printf("Param 0: Value: %s\n", (char *)params[0].tmpref.buffer);
 	}
 
+	printf("Param 1: %u, %u\n", params[1].value.a, params[1].value.b);
+
+	params[1].value.a = 0xE;
+	params[1].value.b = 0xF;
+
+	const char *mystring = "This string was sent by the CA.";
+	if (params[2].tmpref.buffer) {
+		printf("Have buffer in param 2: %zu\n", params[2].tmpref.size);
+		params[2].tmpref.size = strlen(mystring) + 1;
+		memcpy(params[2].tmpref.buffer, mystring, params[2].tmpref.size);
+	}
+
 	return TEEC_SUCCESS;
 }
 
@@ -48,21 +60,24 @@ int main(void)
 	if (res != TEEC_SUCCESS)
 		errx(1, "TEEC_InitializeContext failed with code 0x%x", res);
 
-	res = TEEC_OpenSession(&ctx, &sess, &uuid, TEEC_LOGIN_PUBLIC, NULL, NULL,
-						   &err_origin);
+	TEEC_SessionSettingOcall ocall_setting = { ocall_handler, &sess };
+	TEEC_SessionSetting settings[] = {
+		{ .type = TEEC_SESSION_SETTING_OCALL,
+		  .u.ocall = &ocall_setting }
+	};
+	res = TEEC_OpenSessionEx(&ctx, &sess, &uuid, TEEC_LOGIN_PUBLIC, NULL,
+				 NULL, &err_origin, settings, 1);
 	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_Opensession failed with code 0x%x origin 0x%x", res,
-			 err_origin);
-
-	res = TEEC_SetSessionOcallHandler(&sess, ocall_handler, NULL);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_SetSessionOcallHandler failed with code 0x%x", res,
-			 err_origin);
+		errx(1, "TEEC_OpenSessionEx failed with code 0x%x origin 0x%x",
+			res, err_origin);
 
 	memset(&op, 0, sizeof(op));
 
-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_NONE, TEEC_NONE, TEEC_NONE,
-									 TEEC_NONE);
+	op.paramTypes = TEEC_PARAM_TYPES(
+		TEEC_NONE,
+		TEEC_NONE,
+		TEEC_NONE,
+		TEEC_NONE);
 
 	printf("Invoking TA\n");
 	res = TEEC_Ecall(&sess, TA_OCALL_CMD_TEST, &op, &err_origin);

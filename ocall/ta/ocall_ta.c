@@ -93,19 +93,33 @@ static TEE_Result go()
 	TEE_Result res;
 
 	char *str = "Hello, OCALLs!";
+	char buf[256];
 
 	TEE_Param params[4];
 	uint32_t pt = TEE_PARAM_TYPES(
 		TEE_PARAM_TYPE_MEMREF_INPUT,
-		TEE_PARAM_TYPE_NONE,
-		TEE_PARAM_TYPE_NONE,
+		TEE_PARAM_TYPE_VALUE_INOUT,
+		TEE_PARAM_TYPE_MEMREF_OUTPUT,
 		TEE_PARAM_TYPE_NONE);
 
 	params[0].memref.buffer = str;
 	params[0].memref.size = strlen(str) + 1;
 
+	params[1].value.a = 0xA;
+	params[1].value.b = 0xB;
+
+	params[2].memref.buffer = buf;
+	params[2].memref.size = sizeof(buf);
+
 	res = TEE_InvokeHostCommand(TEE_TIMEOUT_INFINITE, 0, pt, params, &eorig);
 	printf("CA return value: 0x%x of %u\n", res, eorig);
+
+	printf("Param 1: %u, %u\n", params[1].value.a, params[1].value.b);
+
+	if (params[2].memref.buffer) {
+		printf("Have buffer in param 2: %zu\n", params[2].memref.size);
+		printf("%s\n", params[2].memref.buffer);
+	}
 
 	return res;
 }
