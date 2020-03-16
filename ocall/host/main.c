@@ -80,9 +80,9 @@ int main(void)
 		TEEC_NONE);
 
 	printf("Invoking TA\n");
-	res = TEEC_Ecall(&sess, TA_OCALL_CMD_TEST, &op, &err_origin);
+	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST, &op, &err_origin);
 	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_Ecall failed with code 0x%x origin 0x%x", res,
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x", res,
 			 err_origin);
 	printf("TA invoked\n");
 
