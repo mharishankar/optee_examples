@@ -7,9 +7,6 @@
 
 #include <ocall_ta.h>
 
-TEEC_Context ctx;
-TEEC_Session sess;
-
 static void print_uuid(TEEC_UUID *uuid)
 {
 	printf("\tClient: %x-%x-%x-%x%x-%x%x%x%x%x%x\n",
@@ -85,6 +82,7 @@ TEEC_Result ocall_handler(void *context, TEEC_UUID *taUUID, uint32_t commandId,
 		printf("\tOK\n");
 		break;
 	case TA_OCALL_CA_CMD_TEST_8:
+	case TA_OCALL_CA_CMD_TEST_9:
 		if (!params[2].tmpref.buffer || !params[3].tmpref.buffer) {
 			printf("\tNo buffer(s)\n");
 			return TEEC_ERROR_BAD_PARAMETERS;
@@ -117,11 +115,14 @@ TEEC_Result ocall_handler(void *context, TEEC_UUID *taUUID, uint32_t commandId,
 	return TEEC_SUCCESS;
 }
 
-int main(void)
+static void run_test_no_ecall_params(uint32_t cmd_id)
 {
-	TEEC_Result res;
-	TEEC_Operation op;
+	TEEC_Context ctx;
+	TEEC_Session sess;
 	TEEC_UUID uuid = TA_OCALL_UUID;
+	TEEC_Operation op = { 0 };
+
+	TEEC_Result res;
 	uint32_t err_origin;
 
 	res = TEEC_InitializeContext(NULL, &ctx);
@@ -139,61 +140,51 @@ int main(void)
 		errx(1, "TEEC_OpenSessionEx failed with code 0x%x origin 0x%x",
 			res, err_origin);
 
-	memset(&op, 0, sizeof(op));
-
 	op.paramTypes = TEEC_PARAM_TYPES(
 		TEEC_NONE,
 		TEEC_NONE,
 		TEEC_NONE,
 		TEEC_NONE);
   
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_1, &op, &err_origin);
+	printf("ECALL: %u\n", cmd_id);
+	res = TEEC_InvokeCommand(&sess, cmd_id, &op, &err_origin);
 	if (res != TEEC_SUCCESS)
 		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
 			res, err_origin);
 
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_2, &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
-			res, err_origin);
+	TEEC_CloseSession(&sess);
 
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_3, &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
-			res, err_origin);
+	TEEC_FinalizeContext(&ctx);
+}
 
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_4, &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
-			res, err_origin);
+static void run_test_ecall_params_1()
+{
+	TEEC_Context ctx;
+	TEEC_Session sess;
+	TEEC_UUID uuid = TA_OCALL_UUID;
+	TEEC_Operation op = { 0 };
 
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_5, &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
-			res, err_origin);
-
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_6, &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
-			res, err_origin);
-
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_7, &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
-			res, err_origin);
-
-	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_8, &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
-			res, err_origin);
- 
-	/* START: TA_OCALL_CMD_TEST_9 */
+	TEEC_Result res;
+	uint32_t err_origin;
 
  	char buf[128];
 	char *msg1 = "This string was sent by the CA";
 	const char *msg2 = "The CA thinks this is a fun riddle";
 
-	memset(op.params, 0, sizeof(op.params));
+	res = TEEC_InitializeContext(NULL, &ctx);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InitializeContext failed with code 0x%x", res);
+
+	TEEC_SessionSettingOcall ocall_setting = { ocall_handler, &sess };
+	TEEC_SessionSetting settings[] = {
+		{ .type = TEEC_SESSION_SETTING_OCALL,
+		  .u.ocall = &ocall_setting }
+	};
+	res = TEEC_OpenSessionEx(&ctx, &sess, &uuid, TEEC_LOGIN_PUBLIC, NULL,
+				 NULL, &err_origin, settings, 1);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_OpenSessionEx failed with code 0x%x origin 0x%x",
+			res, err_origin);
 
 	op.paramTypes = TEEC_PARAM_TYPES(
 		TEEC_VALUE_INPUT,
@@ -214,6 +205,7 @@ int main(void)
 	op.params[3].tmpref.size = sizeof(buf);
 	memcpy(buf, msg2, strlen(msg2) + 1);
 
+	printf("ECALL: %u\n", TA_OCALL_CMD_TEST_9);
 	res = TEEC_InvokeCommand(&sess, TA_OCALL_CMD_TEST_9, &op, &err_origin);
 	if (res != TEEC_SUCCESS)
 		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
@@ -225,11 +217,21 @@ int main(void)
 	printf("\tInout string: %s\n", (char *)op.params[3].tmpref.buffer);
 	printf("\tInout size: %zu\n", op.params[3].tmpref.size);
 
-	/* END: TA_OCALL_CMD_TEST_9 */
- 
 	TEEC_CloseSession(&sess);
 
 	TEEC_FinalizeContext(&ctx);
+}
+
+int main(int argc, char* argv[])
+{
+	uint32_t cmd_id;
+
+	for (cmd_id = TA_OCALL_CMD_TEST_1;
+	     cmd_id <= TA_OCALL_CMD_TEST_8;
+	     cmd_id++)
+	     run_test_no_ecall_params(cmd_id);
+
+	run_test_ecall_params_1();
 
 	return 0;
 }

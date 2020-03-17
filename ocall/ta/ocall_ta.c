@@ -236,7 +236,7 @@ static TEE_Result test6(uint32_t param_types,
 		return TEE_ERROR_BAD_PARAMETERS;
 
 	const uint32_t ocall_param_types = TEE_PARAM_TYPES(
-		TEE_PARAM_TYPE_VALUE_OUTPUT,
+		TEE_PARAM_TYPE_VALUE_INOUT,
 		TEE_PARAM_TYPE_NONE,
 		TEE_PARAM_TYPE_NONE,
 		TEE_PARAM_TYPE_NONE
@@ -449,7 +449,7 @@ static TEE_Result test9(uint32_t param_types,
 	ocall_params[3].memref.buffer = buf2;
 	ocall_params[3].memref.size = sizeof(buf2);
 
-	res = TEE_InvokeCACommand(TEE_TIMEOUT_INFINITE, TA_OCALL_CA_CMD_TEST_8,
+	res = TEE_InvokeCACommand(TEE_TIMEOUT_INFINITE, TA_OCALL_CA_CMD_TEST_9,
 		ocall_param_types, ocall_params, &eorig);
 	if (res != TEE_SUCCESS)
 		EMSG("TEE_InvokeCACommand failed with code 0x%x origin 0x%x",
