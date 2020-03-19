@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2020, Microsoft Corporation
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
 #include <string.h>
@@ -47,7 +54,7 @@ static TEE_Result test1(uint32_t param_types,
 
 	if (param_types != expected_pt)
 		return TEE_ERROR_BAD_PARAMETERS;
-	
+
 	res = TEE_InvokeCACommand(TEE_TIMEOUT_INFINITE, TA_OCALL_CA_CMD_TEST_1,
 		0, NULL, &eorig);
 	if (res != TEE_SUCCESS)
@@ -349,7 +356,7 @@ static TEE_Result test8(uint32_t param_types,
 
 	ocall_params[1].value.a = 0xA;
 	ocall_params[1].value.b = 0xB;
- 
+
 	ocall_params[2].memref.buffer = buf1;
 	ocall_params[2].memref.size = sizeof(buf1);
 
@@ -442,7 +449,7 @@ static TEE_Result test9(uint32_t param_types,
 
 	ocall_params[1].value.a = 0xA;
 	ocall_params[1].value.b = 0xB;
- 
+
 	ocall_params[2].memref.buffer = buf1;
 	ocall_params[2].memref.size = sizeof(buf1);
 

@@ -1,4 +1,12 @@
 /*
+ * Copyright (c) 2020, Microsoft Corporation
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+
+/*
  * The name of this file must not be modified
  */
 

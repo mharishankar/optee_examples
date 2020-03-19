@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2020, Microsoft Corporation
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
 #ifndef TA_OCALL_H
 #define TA_OCALL_H
 

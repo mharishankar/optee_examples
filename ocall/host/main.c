@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2020, Microsoft Corporation
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
 #include <err.h>
 #include <stdio.h>
 #include <string.h>
@@ -145,7 +152,7 @@ static void run_test_no_ecall_params(uint32_t cmd_id)
 		TEEC_NONE,
 		TEEC_NONE,
 		TEEC_NONE);
-  
+
 	printf("ECALL: %u\n", cmd_id);
 	res = TEEC_InvokeCommand(&sess, cmd_id, &op, &err_origin);
 	if (res != TEEC_SUCCESS)
@@ -197,7 +204,7 @@ static void run_test_ecall_params_1()
 
 	op.params[1].value.a = 0x5;
 	op.params[1].value.b = 0x6;
-	
+
 	op.params[2].tmpref.buffer = msg1;
 	op.params[2].tmpref.size = strlen(msg1) + 1;
 
