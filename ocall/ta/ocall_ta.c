@@ -11,7 +11,6 @@
 
 #include <ocall_ta.h>
 
-#include <pta_ocall.h>
 #include <util.h>
 
 TEE_Result TA_CreateEntryPoint(void)
