@@ -14,9 +14,6 @@
 
 #include <ocall_ta.h>
 
-#define PTR_ADD(ptr, offs) ((void *)((uintptr_t)(ptr) + (uintptr_t)(offs)))
-#define GET_BUF(p) (PTR_ADD((p).memref.parent->buffer, (p).memref.offset))
-
 static void print_uuid(TEEC_UUID *uuid)
 {
 	printf("%x-%x-%x-%x%x-%x%x%x%x%x%x",
@@ -46,13 +43,6 @@ static void print_uuid(TEEC_UUID *uuid)
  * 'ctxData' is the arbitrary pointer that was set via the TEE context OCALL
  * setting, if any. Similarly, 'sessionData' is the arbitrary pointer set via
  * the session data setting, if it was supplied, or NULL.
- *
- * NOTE: Notice that the OCALL carries memory references. Currently, OP-TEE
- *       takes any memref parameter that originates in the TA and marshals it to
- *       the CA in a single shared memory object. Hence, the two buffers passed
- *       from the TA wind up at different offsets within the same memory
- *       reference. Therefore, it is necessary to take the offset into
- *       consideration while manipulating these buffers.
  */
 TEEC_Result ocall_handler(TEEC_UUID *taUUID, uint32_t commandId,
 			  uint32_t paramTypes,
@@ -77,11 +67,11 @@ TEEC_Result ocall_handler(TEEC_UUID *taUUID, uint32_t commandId,
 			fprintf(stderr, "Bad parameter types\n");
 			return TEEC_ERROR_BAD_PARAMETERS;
 		}
-		if (!params[2].memref.parent || !params[3].memref.parent) {
+		if (!params[2].tmpref.buffer || !params[3].tmpref.buffer) {
 			fprintf(stderr, "No buffer(s)\n");
 			return TEEC_ERROR_BAD_PARAMETERS;
 		}
-		if (params[3].memref.size < strlen(msg) + 1) {
+		if (params[3].tmpref.size < strlen(msg) + 1) {
 			fprintf(stderr, "Bad parameters\n");
 			return TEEC_ERROR_BAD_PARAMETERS;
 		}
@@ -92,18 +82,18 @@ TEEC_Result ocall_handler(TEEC_UUID *taUUID, uint32_t commandId,
 		printf("Inout values: %u, %u\n", params[1].value.a,
 			params[1].value.b);
 
-		printf("Input string: %s\n", (char *)GET_BUF(params[2]));
-		printf("Input size: %zu\n", params[2].memref.size);
+		printf("Input string: %s\n", (char *)params[2].tmpref.buffer);
+		printf("Input size: %zu\n", params[2].tmpref.size);
 
-		printf("Inout string: %s\n", (char *)GET_BUF(params[3]));
-		printf("Inout size: %zu\n", params[3].memref.size);
+		printf("Inout string: %s\n", (char *)params[3].tmpref.buffer);
+		printf("Inout size: %zu\n", params[3].tmpref.size);
 
 		/* Set the OCALL's INOUT parameters */
 		params[1].value.a = 0x3;
 		params[1].value.b = 0x4;
 
-		params[3].memref.size = strlen(msg) + 1;
-		memcpy(GET_BUF(params[3]), msg, params[3].memref.size);
+		params[3].tmpref.size = strlen(msg) + 1;
+		memcpy(params[3].tmpref.buffer, msg, params[3].tmpref.size);
 
 		printf("OCALL handled\n");
 		break;
