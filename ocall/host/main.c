@@ -58,6 +58,29 @@ TEEC_Result ocall_handler(TEEC_UUID *taUUID, uint32_t commandId,
 	printf("\n");
 
 	switch (commandId) {
+	case CA_OCALL_CMD_REPLY_SESSION_OPEN:
+		expected_pt = TEEC_PARAM_TYPES(TEEC_VALUE_INOUT,
+					       TEEC_NONE,
+					       TEEC_NONE,
+					       TEEC_MEMREF_TEMP_INPUT);
+		if (paramTypes != expected_pt) {
+			fprintf(stderr, "Bad parameter types\n");
+			return TEEC_ERROR_BAD_PARAMETERS;
+		}
+		if (!params[3].tmpref.buffer) {
+			fprintf(stderr, "No buffer\n");
+			return TEEC_ERROR_BAD_PARAMETERS;
+		}
+
+		/* Print out the OCALL's INPUT/INOUT parameters */
+		printf("Input values: 0x%x, 0x%x\n", params[0].value.a,
+			params[0].value.b);
+		printf("Input string: %s\n", (char *)params[3].tmpref.buffer);
+
+		/* Set the OCALL's INOUT parameters */
+		params[0].value.a = 0xCDDC1001;
+		params[0].value.b = 0xFFFFCAFE;
+		break;
 	case CA_OCALL_CMD_REPLY_TA:
 		expected_pt = TEEC_PARAM_TYPES(TEEC_VALUE_INPUT,
 					       TEEC_VALUE_INOUT,
@@ -94,13 +117,13 @@ TEEC_Result ocall_handler(TEEC_UUID *taUUID, uint32_t commandId,
 
 		params[3].tmpref.size = strlen(msg) + 1;
 		memcpy(params[3].tmpref.buffer, msg, params[3].tmpref.size);
-
-		printf("OCALL handled\n");
 		break;
 	default:
 		fprintf(stderr, "Bad function ID\n");
 		return TEEC_ERROR_BAD_PARAMETERS;
 	}
+
+	printf("OCALL handled\n");
 	return TEEC_SUCCESS;
 }
 
@@ -109,24 +132,26 @@ int main(int argc, char* argv[])
 	TEEC_Context ctx;
 	TEEC_Session sess;
 	TEEC_UUID uuid = TA_OCALL_UUID;
-	TEEC_Operation op = { 0 };
+	TEEC_Operation op;
 
 	TEEC_Result res;
 	uint32_t err_origin;
 
  	char buf[128];
+ 	char buf2[128];
 	char *msg1 = "This string was sent by the CA";
 	const char *msg2 = "The CA thinks this is a fun riddle";
 
 	/*
-	 * The TEE context OCALL setting allows setting the callback handler for
-	 * when an OCALL arrives from the TA. This handler is effectively the
-	 * equivalent of TA_InvokeCommandEntryPoint. Additionally, one may set
-	 * an arbitrary pointer that will be passed to the OCALL handler when
-	 * invoked.
+	 * The TEE context OCALL setting allows specifying the callback handler
+	 * for when an OCALL arrives from the TA. This handler is effectively
+	 * the equivalent of TA_InvokeCommandEntryPoint, but on the CA side.
+	 * Additionally, one may set an arbitrary pointer that will be passed
+	 * to the OCALL handler when invoked.
 	 *
 	 * NOTE: You must pass this setting to the TEE context initialization
-	 *       routine to receive OCALLs.
+	 *       routine to receive OCALLs; otherwise, all OCALLs will return
+	 *       a failure code.
 	 */
 	TEEC_ContextSettingOcall ocall_setting = {
 		.handler = ocall_handler,
@@ -145,8 +170,8 @@ int main(int argc, char* argv[])
 		errx(1, "TEEC_InitializeContext failed with code 0x%x", res);
 
 	/*
-	 * The session data settings allows attaching an arbitrary pointer to
-	 * the session. This pointer will be passed to the OCALL handler when
+	 * The session data setting allows attaching an arbitrary pointer to the
+	 * session. This pointer will be passed to the OCALL handler when
 	 * invoked.
 	 *
 	 * NOTE: This is optional; you can use TEEC_OpenSession as well even if
@@ -162,12 +187,31 @@ int main(int argc, char* argv[])
 		.u.data = &data_setting,
 	};
 
-	/* Open a session with settings */
+	/* Set up the parameters for the TA's session open handler */
+	memset(&op, 0, sizeof(op));
+	op.paramTypes = TEEC_PARAM_TYPES(
+		TEEC_VALUE_INPUT,
+		TEEC_MEMREF_TEMP_INPUT,
+		TEEC_NONE,
+		TEEC_NONE);
+
+	op.params[0].value.a = 0x0000CAFE;
+	op.params[0].value.b = 0xCAFE0000;
+
+	op.params[1].tmpref.buffer = (void *)msg2;
+	op.params[1].tmpref.size = strlen(msg2) + 1;
+
+	/* Open a session with settings; the sample TA will issue an OCALL */
 	res = TEEC_OpenSession2(&ctx, &sess, &uuid, TEEC_LOGIN_PUBLIC, NULL,
-				NULL, &err_origin, &session_settings, 1);
+				&op, &err_origin, &session_settings, 1);
 	if (res != TEEC_SUCCESS)
 		errx(1, "TEEC_OpenSessionEx failed with code 0x%x origin 0x%x",
 			res, err_origin);
+
+	/*
+	 * The code below executes after the OCALL has been handled in the
+	 * callback at the top of this file.
+	 */
 
 	/*
 	 * Set up the parameters for the function invocation. These are just to
@@ -177,6 +221,7 @@ int main(int argc, char* argv[])
 	 * parameters passed from the CA to the TA do not interfere with those
 	 * passed from the TA to the CA, and vice-versa.
 	 */
+	memset(&op, 0, sizeof(op));
 	op.paramTypes = TEEC_PARAM_TYPES(
 		TEEC_VALUE_INPUT,
 		TEEC_VALUE_INOUT,
@@ -203,8 +248,8 @@ int main(int argc, char* argv[])
 			res, err_origin);
 
 	/*
-	 * The code below executes after the OCALL has been handled in the
-	 * callback at the top of this file.
+	 * The code below once again executes after the OCALL has been handled
+	 * in the callback at the top of this file.
 	 */
 
 	/*
